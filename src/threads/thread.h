@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "fixed_point.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -84,7 +85,7 @@ struct thread
   {
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
-    enum thread_status status;          /* Thread state. */
+    enum thread_status status;          /* Thread state.*/
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
@@ -92,7 +93,14 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
-
+    struct lock *locked_on;             /* locked_on for priority donation logic */
+    int64_t wakeup_ticks;               /* Wakeup ticks for the timer sleep */
+    struct list donation_list;          /* list of donations */
+    struct list_elem donation_list_elem; /* element of the list of donations */
+    fixed_point recent_cpu;             /* Recent_cpu used in Advanced Priority */
+    int nice;                           /* Nice Value used in Advanced Priority */
+    int init_priority;                  /* for thread_set_priority(), like a cache */
+    
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -111,6 +119,8 @@ void thread_init (void);
 void thread_start (void);
 
 void thread_tick (void);
+void calculate_load_average(int ticks);
+void calculate_new_priority(int ticks);
 void thread_print_stats (void);
 
 typedef void thread_func (void *aux);
@@ -137,5 +147,23 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+
+void test_yield(void); /* tests the current thread whether should out of CPU or not*/
+
+void update_priority (void); /* updates the thread priority */
+
+void donate_priority(void); /* donates the priority (priority inheritance) */
+
+void lock_remove (struct lock *lock); /* removes lock from donation_list */
+
+bool change_priority (const struct list_elem *a, const struct list_elem *b, void *aux); /* change priority */
+
+
+bool wakeup_thread(const struct list_elem *, const struct list_elem *, void *);
+bool compare_priorities(const struct list_elem *, const struct list_elem *, void *);
+
+void update_recent_cpu(struct thread *t, void *aux);
+void advanced_prioriy_update(struct thread *t, void *aux);
 
 #endif /* threads/thread.h */
